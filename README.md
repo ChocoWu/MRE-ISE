@@ -1,2 +1,2 @@
 # MRE-ISE
-This is the code for the ACL-23 paper [Unifying Information Extraction with Latent Adaptive Structure-aware Generative Language Model]().
+This is the code for the ACL-23 paper [Information Screening whilst Exploiting! Multimodal Relation Extraction with Feature Denoising and Multimodal Topic Modeling]().
