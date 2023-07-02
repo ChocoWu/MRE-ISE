@@ -22,7 +22,6 @@ This is the official code for the ACL-23 paper [Information Screening whilst Exp
   <img src="./figures/framework.png" width="1000"/>
 </p>
 
-* * * 
 
 ## Code Usage<a name="code" />
 
@@ -85,23 +84,8 @@ Before testing the model, you need to modify the parameter `--do_train` into `--
 CUDA_VISIBLE_DEVICES=2 python -u run.py \
         --pretrain_name=${PRETRAIN_NAME} \
         --dataset_name=${DATASET_NAME} \
-        --num_epochs=30 \
         --batch_size=16 \
-        --lr_pretrained=2e-5 \
-        --lr_main=2e-4 \
-        --warmup_ratio=0.01 \
-        --eval_begin_epoch=10 \
-        --seed=1234 \
         --do_test \
-        --max_seq=40 \
-        --max_obj=40 \
-        --beta=0.01 \
-        --temperature=0.1 \
-        --eta1=0.8 \
-        --eta2=0.7 \
-        --neighbor_num=2 \
-        --topic_keywords_number=10 \
-        --topic_number=10 \
         --load_path="ckpt"
 ```
 
