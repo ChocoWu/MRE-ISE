@@ -47,7 +47,7 @@ To obtain the parsed textual scene graph (TSG) and visual scene graph (VSG), we 
 
 
 
-### Train Model
+### Training
 To train the model via `run.sh`:
 ```angular2html
 bash run.sh
@@ -78,7 +78,7 @@ CUDA_VISIBLE_DEVICES=2 python -u run.py \
 ```
 
 
-### Test model
+### Testing
 Before testing the model, you need to modify the parameter `--do_train` into `--do_test`:
 ```angular2html
 CUDA_VISIBLE_DEVICES=2 python -u run.py \
