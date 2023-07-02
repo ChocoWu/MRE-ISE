@@ -1,0 +1,592 @@
+[
+  {
+    "test_tuples": [
+      {
+        "tuple": [
+          "room"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "room",
+          "live"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "room",
+          "dining"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "room",
+          "kitchen"
+        ],
+        "truth_value": false
+      }
+    ],
+    "ref_tuples": [
+      {
+        "tuple": [
+          "room"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "room",
+          "live"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "apartment"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "apartment",
+          "small"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "arrangement"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "arrangement",
+          "room"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "furniture"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "kitchen"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "kitchen",
+          "look like",
+          "space"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "kitchen",
+          "modern"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "lamp"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "lamp",
+          "light",
+          "apartment"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "lamp",
+          "modern"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "lamp",
+          "style"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "other"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "other",
+          "empty"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "plan"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "plan",
+          "display",
+          "kitchen"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "plan",
+          "floor"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "plan",
+          "open"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "room",
+          "look like",
+          "space"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "room",
+          "other"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "space"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "space",
+          "small"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "table"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "table",
+          "dining"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "table",
+          "look like",
+          "space"
+        ],
+        "truth_value": false
+      }
+    ],
+    "scores": {
+      "All": {
+        "pr": 0.5,
+        "re": 0.07407407407407407,
+        "f": 0.12903225806451613,
+        "fn": 25,
+        "numImages": 1,
+        "fp": 2,
+        "tp": 2
+      },
+      "Relation": {
+        "pr": 0,
+        "re": 0,
+        "f": 0,
+        "fn": 5,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 0
+      },
+      "Cardinality": {
+        "pr": null,
+        "re": null,
+        "f": null,
+        "fn": 0,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 0
+      },
+      "Attribute": {
+        "pr": 0.3333333333333333,
+        "re": 0.08333333333333333,
+        "f": 0.13333333333333333,
+        "fn": 11,
+        "numImages": 1,
+        "fp": 2,
+        "tp": 1
+      },
+      "Size": {
+        "pr": 0,
+        "re": 0,
+        "f": 0,
+        "fn": 2,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 0
+      },
+      "Color": {
+        "pr": null,
+        "re": null,
+        "f": null,
+        "fn": 0,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 0
+      },
+      "Object": {
+        "pr": 1,
+        "re": 0.1,
+        "f": 0.18181818181818182,
+        "fn": 9,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 1
+      }
+    },
+    "image_id": 1
+  },
+  {
+    "test_tuples": [
+      {
+        "tuple": [
+          "side"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "side",
+          "of",
+          "street"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "street"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "truck"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "truck",
+          "fedex"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "truck",
+          "park on",
+          "side"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "truck",
+          "two"
+        ],
+        "truth_value": true
+      }
+    ],
+    "ref_tuples": [
+      {
+        "tuple": [
+          "side"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "side",
+          "of",
+          "street"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "street"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "truck"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "truck",
+          "fedex"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "truck",
+          "park on",
+          "side"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "truck",
+          "two"
+        ],
+        "truth_value": true
+      },
+      {
+        "tuple": [
+          "buiding"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "buiding",
+          "behind",
+          "truck"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "buiding",
+          "tall"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "building"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "car"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "car",
+          "wait in",
+          "traffic"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "couple"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "road"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "side",
+          "of",
+          "road"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "traffic"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "truck",
+          "a"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "truck",
+          "delivery"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "truck",
+          "ex"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "truck",
+          "feed"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "truck",
+          "park outside of",
+          "building"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "truck",
+          "park with",
+          "buiding"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "van"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "van",
+          "delivery"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "van",
+          "few"
+        ],
+        "truth_value": false
+      },
+      {
+        "tuple": [
+          "van",
+          "park on",
+          "side"
+        ],
+        "truth_value": false
+      }
+    ],
+    "scores": {
+      "All": {
+        "pr": 1,
+        "re": 0.25925925925925924,
+        "f": 0.4117647058823529,
+        "fn": 20,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 7
+      },
+      "Relation": {
+        "pr": 1,
+        "re": 0.25,
+        "f": 0.4,
+        "fn": 6,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 2
+      },
+      "Cardinality": {
+        "pr": 1,
+        "re": 1,
+        "f": 1,
+        "fn": 0,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 1
+      },
+      "Attribute": {
+        "pr": 1,
+        "re": 0.2222222222222222,
+        "f": 0.3636363636363636,
+        "fn": 7,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 2
+      },
+      "Size": {
+        "pr": 0,
+        "re": 0,
+        "f": 0,
+        "fn": 1,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 0
+      },
+      "Color": {
+        "pr": null,
+        "re": null,
+        "f": null,
+        "fn": 0,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 0
+      },
+      "Object": {
+        "pr": 1,
+        "re": 0.3,
+        "f": 0.4615384615384615,
+        "fn": 7,
+        "numImages": 1,
+        "fp": 0,
+        "tp": 3
+      }
+    },
+    "image_id": 234
+  }
+]
