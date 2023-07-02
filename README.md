@@ -4,7 +4,6 @@ This is the official code for the ACL-23 paper [Information Screening whilst Exp
 
  ### 🎉 Visit the project page: [mmre-page](https://chocowu.github.io/mmre-page/)
 
-* * * 
 
 ## Overview<a name="overview" />
 > Relation extraction (RE), determining the semantic relation between a pair of subject and object entities in a given text. 
@@ -109,35 +108,31 @@ CUDA_VISIBLE_DEVICES=2 python -u run.py \
 
 ## MISC<a name="misc" />
 
-----------
 
 ### Citation
 
 If you use this work, please kindly cite:
 
 ```
-@inproceedings{FeiAcl23THOR,
-  title={Reasoning Implicit Sentiment with Chain-of-Thought Prompting},
-  author={Hao Fei, Bobo Li, Qian Liu, Lidong Bing, Fei Li, Tat-Seng Chua},
-  booktitle = "Proceedings of the Annual Meeting of the Association for Computational Linguistics",
-  year={2023}
+@inproceedings{WUAcl23MMRE,
+  author    = {Shengqiong Wu, Hao Fei, Yixin Cao, Lidong Bing, Tat-Seng Chua},
+  title     = {Information Screening whilst Exploiting! Multimodal Relation Extraction with Feature Denoising and Multimodal Topic Modeling},
+  journal   = {Proceedings of the Annual Meeting of the Association for Computational Linguistics},
+  year      = {2023},
 }
 ```
 
-
-----------
 
 
 ### Acknowledgement
 
 This code is referred from following projects:
-[CoT](https://arxiv.org/abs/2201.11903); 
-[Flan-T5](https://huggingface.co/docs/transformers/model_doc/flan-t5);
-[OpenAI-GPT3](https://platform.openai.com/docs/models/gpt-3-5);
-[Transformer](https://github.com/huggingface/transformers),
+[MKGformer](https://github.com/zjunlp/MKGformer); 
+[contextualized-topic-models](https://github.com/MilaNLProc/contextualized-topic-models);
+[Transformer](https://github.com/huggingface/transformers);
+[CLIP](https://huggingface.co/docs/transformers/model_doc/clip#clip),
 
 
-----------
 
 
 ### License
