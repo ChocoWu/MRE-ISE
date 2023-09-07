@@ -15,8 +15,8 @@ Therefore, you can run the following command:
 ```angular2html
 $ bash ./get_stanford_models.sh
 ```
-or otherwise download the CoreNLP 3.6.0 code and models jar files into [lib](lib).
-Instructions for using SPICE can be found in [SPICE/README.md](https://github.com/peteanderson80/SPICE/blob/master/README.md)
+or manually download the CoreNLP 3.6.0 code and models jar files into [lib](lib).
+Instructions for using SPICE can be found in [SPICE/README.md](https://github.com/peteanderson80/SPICE/blob/master/README.md), and the `spice.1.0.jar` can be downloaded in this [website](https://panderson.me/spice/).
 
 ## TSG parsing
 
