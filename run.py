@@ -28,7 +28,7 @@ logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(messa
 logger = logging.getLogger(__name__)
 
 MODEL_CLASS = {
-    'bert': (MREProcessor, MREDataset),
+    'bert': (MMREProcessor, NewMMREDatasetForIB),
 }
 
 
