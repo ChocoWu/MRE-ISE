@@ -12,7 +12,7 @@ from cores.gene.model import MRE
 from transformers import CLIPProcessor, CLIPModel
 
 from transformers import CLIPConfig
-from processor.dataset import MREProcessor, MREDataset
+from processor.dataset import MMREProcessor, NewMMREDatasetForIB
 from cores.gene.model import Trainer
 
 import os
