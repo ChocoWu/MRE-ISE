@@ -5,7 +5,7 @@ from torch import optim
 from tqdm import tqdm
 from sklearn.metrics import classification_report
 from transformers.optimization import get_linear_schedule_with_warmup
-from modules.metrics import eval_result
+from .metrics import eval_result
 import math
 
 
