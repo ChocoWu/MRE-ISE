@@ -44,10 +44,8 @@ The final file structure:
             'rel': [['breed', 'of', 'Crocodile'], ...]
         },
         'VSG': {
-            's_bbox': [[0, 0, 800, 600], [70, 209, 190, 247], ...],
-            's_bbox_attri': ["img", "wing", "wing", "bird", ...],
-            'o_bbox': [[0, 0, 800, 600], [70, 209, 190, 247], ...],
-            'o_bbox_attri': ["img", "wing", "wing", "bird", ...],
+            'bbox': [[0, 0, 800, 600], [70, 209, 190, 247], ...],
+            'bbox_attri': ["img", "wing", "wing", "bird", ...],
             'rel': [
                 {"s_index": 1, "o_index": 2, "name": "of"},
                 ...
