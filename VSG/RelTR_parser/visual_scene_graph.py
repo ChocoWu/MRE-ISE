@@ -177,7 +177,7 @@ def construct_scene_graph(data, original_img_dir, target_file, mode='train'):
                 _flag, _idx = find_repeat((oxmin, oymin, oxmax, oymax), bbox)
                 if not _flag:
                     bbox.append((oxmin, oymin, oxmax, oymax))
-                    bbox_attri.append(CLASSES[probas_sub[idx].argmax()])
+                    bbox_attri.append(CLASSES[probas_obj[idx].argmax()])
                     o_index = len(bbox) - 1
                 else:
                     o_index = _idx
