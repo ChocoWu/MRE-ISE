@@ -12,8 +12,8 @@ from cores.gene.model import MRE
 from transformers import CLIPProcessor, CLIPModel
 
 from transformers import CLIPConfig
-from processor.dataset import MMREProcessor, NewMMREDatasetForIB
-from cores.gene.model import Trainer
+from processor.dataset import MMREProcessor, NewMMREDatasetForIB, collate_fn_padding
+from cores.gene.train import Trainer
 
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -79,7 +79,8 @@ def main():
     parser.add_argument('--do_test', action='store_true')
     parser.add_argument('--do_predict', action='store_true')
     parser.add_argument('--max_seq', default=40, type=int)
-    parser.add_argument('--max_obj', default=40, type=int)
+    parser.add_argument('--max_tobj_num', default=10, type=int)
+    parser.add_argument('--max_vobj_num', default=15, type=int)
 
     parser.add_argument('--hid_size', default=768, type=int, help="hidden state size")
     parser.add_argument('--num_layers', default=2, type=int, help="number of refine layers")
@@ -108,7 +109,7 @@ def main():
 
     args = parser.parse_args()
 
-    data_path, img_path, aux_path = DATA_PATH[args.dataset_name], IMG_PATH[args.dataset_name], AUX_PATH[args.dataset_name]
+    data_path, img_path = DATA_PATH[args.dataset_name], IMG_PATH[args.dataset_name]
     data_process, dataset_class = MODEL_CLASS[args.model_name]
     re_path = 'data/ours_rel2id.json'
 
@@ -128,25 +129,20 @@ def main():
     logdir = "logs/" + args.model_name + "_"+args.dataset_name + "_"+str(args.batch_size) + "_" + str(args.lr) + args.notes
     writer = SummaryWriter(log_dir=logdir)
     if args.do_train:
-        clip_vit, clip_processor, aux_processor, rcnn_processor = None, None, None, None
         clip_processor = CLIPProcessor.from_pretrained(args.vit_name)
-        aux_processor = CLIPProcessor.from_pretrained(args.vit_name)
-        aux_processor.feature_extractor.size, aux_processor.feature_extractor.crop_size = args.aux_size, args.aux_size
-        rcnn_processor = CLIPProcessor.from_pretrained(args.vit_name)
-        rcnn_processor.feature_extractor.size, rcnn_processor.feature_extractor.crop_size = args.rcnn_size, args.rcnn_size
         clip_model = CLIPModel.from_pretrained(args.vit_name)
         clip_vit = clip_model.vision_model
         clip_text = clip_model.text_model
 
-        processor = data_process(data_path, re_path, args.bert_name, args.vit_name, clip_processor=clip_processor, aux_processor=aux_processor, rcnn_processor=rcnn_processor)
-        train_dataset = dataset_class(processor, transform, img_path, aux_path, args.max_seq, aux_size=args.aux_size, rcnn_size=args.rcnn_size, mode='train', max_obj_num=args.max_obj_num)
-        train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True)
+        processor = data_process(data_path, re_path, args.bert_name, args.vit_name, clip_processor=clip_processor)
+        train_dataset = dataset_class(processor, transform, img_path, args.max_seq, mode='train', max_tobj_num=args.max_tobj_num, max_vobj_num=args.max_vobj_num)
+        train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True, collate_fn=collate_fn_padding)
 
-        dev_dataset = dataset_class(processor, transform, img_path, aux_path, args.max_seq, aux_size=args.aux_size, rcnn_size=args.rcnn_size, mode='dev', max_obj_num=args.max_obj_num)
-        dev_dataloader = DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
+        dev_dataset = dataset_class(processor, transform, img_path, args.max_seq, mode='dev', max_tobj_num=args.max_tobj_num, max_vobj_num=args.max_vobj_num)
+        dev_dataloader = DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True, collate_fn=collate_fn_padding)
 
-        test_dataset = dataset_class(processor, transform, img_path, aux_path, args.max_seq, aux_size=args.aux_size, rcnn_size=args.rcnn_size, mode='test', max_obj_num=args.max_obj_num)
-        test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
+        test_dataset = dataset_class(processor, transform, img_path, args.max_seq, mode='test', max_tobj_num=args.max_tobj_num, max_vobj_num=args.max_vobj_num)
+        test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True, collate_fn=collate_fn_padding)
 
         re_dict = processor.get_relation_dict()
         num_labels = len(re_dict)
@@ -163,6 +159,9 @@ def main():
         trainer.train()
         torch.cuda.empty_cache()
         writer.close()
+    else:
+        print("Please set do_train=True to train the model.")
+
 
 
 if __name__ == "__main__":

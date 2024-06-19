@@ -7,6 +7,7 @@ from sklearn.metrics import classification_report
 from transformers.optimization import get_linear_schedule_with_warmup
 from .metrics import eval_result
 import math
+from .utils import to_device
 
 
 class Trainer(object):
@@ -57,7 +58,7 @@ class Trainer(object):
                 pbar.set_description_str(desc="Epoch {}/{}".format(epoch, self.args.num_epochs))
                 for batch in self.train_data:
                     self.step += 1
-                    batch = (tup.to(self.args.device) if isinstance(tup, torch.Tensor) else tup for tup in batch)
+                    batch = to_device(batch, self._device)
 
                     (mu, std), logits1, logits2, labels, topic_loss = self._step(batch, mode="train", step=self.step)
                     GIB_loss = self.loss_func(logits1, labels.view(-1))
@@ -213,16 +214,9 @@ class Trainer(object):
         self.model.train()
 
     def _step(self, batch, mode="train", step=0):
-        input_ids, pieces2word, attention_mask, token_type_ids, adj_matrix, head_tail_pos, labels, image, aux_imgs, \
-        aux_mask, edge_mask, vbow_features, tbow_features = batch
-        (mu, std), logits1, logits2, topic_loss = self.model(input_ids=input_ids, attention_mask=attention_mask,
-                                                             head_tail_pos=head_tail_pos, piece2word=pieces2word,
-                                                             adj_matrix=adj_matrix, labels=labels,
-                                                             aux_imgs=aux_imgs, aux_mask=aux_mask,
-                                                             edge_mask=edge_mask, writer=self.writer, step=step,
-                                                             X_T_bow=tbow_features, X_V_bow=vbow_features)
+        (mu, std), logits1, logits2, topic_loss = self.model(batch, writer=self.writer, step=step)
 
-        return (mu, std), logits1, logits2, labels, topic_loss
+        return (mu, std), logits1, logits2, topic_loss
 
     def before_multimodal_train(self):
         pretrained_params = []

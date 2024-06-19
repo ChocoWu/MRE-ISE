@@ -13,6 +13,7 @@ from torchvision import transforms
 from transformers import CLIPTokenizer
 from torch_geometric.utils import to_dense_adj, dense_to_sparse, add_self_loops
 import logging
+import cv2
 from processor.create_bow import extract_tbow_features, extract_vbow_features
 
 
@@ -85,8 +86,7 @@ class MMREProcessor(object):
 
         assert len(words) == len(relations) == len(heads) == len(tails) == (len(imgids)) == len(VSG) == len(TSG)
 
-        # file_path, visual_word_path, visual_bow_size, original_img_dir,  clip_version = "openai/clip-vit-base-patch32"
-        vbow_features, vbow_id2token = extract_vbow_features(self.data_path[mode], self.data_path['vbow'],
+        vbow_features, vbow_id2token, vocab, visual_word = extract_vbow_features(self.data_path[mode], self.data_path['vbow'],
                                                              visual_bow_size=self.visual_bow_size,
                                                              original_img_dir=self.img_path['train'],
                                                              clip_version=self.vit_name)
@@ -120,7 +120,7 @@ class MMREProcessor(object):
 
 class NewMMREDatasetForIB(Dataset):
     def __init__(self, processor, transform, img_path=None, max_seq=40,
-                 mode="train", max_obj_num=40) -> None:
+                 mode="train", max_tobj_num=40, max_vobj_num=40) -> None:
         self.processor = processor
         self.transform = transform
         self.max_seq = max_seq
@@ -128,9 +128,11 @@ class NewMMREDatasetForIB(Dataset):
         self.mode = mode
         self.data_dict = self.processor.load_from_json(mode)
         self.re_dict = self.processor.get_relation_dict()
+        self.re2id = self.processor.get_rel2id(self.processor.data_path[mode])
         self.tokenizer = self.processor.tokenizer
         self.clip_processor = self.processor.clip_processor
-        self.max_obj_num = max_obj_num
+        self.max_tobj_num = max_tobj_num
+        self.max_vobj_num = max_vobj_num
 
         self.text_bow_size = len(self.data_dict['tbow_id2token'])
         self.visual_bow_size = len(self.data_dict['vbow_id2token'])
@@ -144,10 +146,13 @@ class NewMMREDatasetForIB(Dataset):
         word_list, relation, head_d, tail_d, imgid = self.data_dict['words'][idx], self.data_dict['relations'][idx], \
                                                      self.data_dict['heads'][idx], self.data_dict['tails'][idx], \
                                                      self.data_dict['imgids'][idx]
+        _relation = self.re2id[idx]
         item_id = self.data_dict['dataid'][idx]
         # [CLS] ... <s> head </s> ... <o> tail <o/> .. [SEP]
         head_pos, tail_pos = head_d['pos'], tail_d['pos']
         head_tail_pos = torch.tensor(head_d['pos'] + tail_d['pos'])
+        head_object_tokens = self.tokenizer.tokenize(head_d['name'])
+        tail_object_tokens = self.tokenizer.tokenize(tail_d['name'])
 
         tokens = [self.tokenizer.tokenize(word) for word in word_list]
         pieces = [piece for pieces in tokens for piece in pieces]
@@ -176,17 +181,38 @@ class NewMMREDatasetForIB(Dataset):
 
         re_label = self.re_dict[relation]  # label to id
 
-        dep_head = [k if i - 1 < 0 else i - 1 for k, i in enumerate(self.data_dict['dep_head'][idx])]
-        dep_tail = [i for i in range(0, len(dep_head))]
-        edge_index = torch.tensor([dep_head, dep_tail], dtype=torch.long)
-        edge_index = add_self_loops(edge_index)[0]
-        adj_matrix = to_dense_adj(edge_index, max_num_nodes=self.max_seq).squeeze()
+        # adjacent matrix for TSG
+        t_objects = self.data_dict['TSG'][idx]['obj']   # list
+        t_attributes = self.data_dict['TSG'][idx]['attr']  # list
+        t_relations = self.data_dict['TSG'][idx]['rel']  # list[obj, rel, obj]
+        t_objects_tokens = [self.tokenizer.tokenize(obj) for obj in t_objects]
+        t_attributes_tokens = [self.tokenizer.tokenize(' '.join(attr.reverse())) for attr in t_attributes]
+        t_relations_tokens = [self.tokenizer.tokenize(' '.join(rel)) for rel in t_relations]
+        TSG_edge_index = torch.tensor([[t_objects.index(rel[0]), t_objects.index(rel[-1])] for rel in t_relations], dtype=torch.long)
+        TSG_edge_index = add_self_loops(TSG_edge_index)[0]
+        TSG_adj_matrix = to_dense_adj(TSG_edge_index, max_num_nodes=self.max_tobj_num).squeeze()
 
-        edge_mask = torch.zeros(self.max_seq + self.max_obj_num, self.max_seq + self.max_obj_num)
-        edge_mask[:length, :length] = 1
-        edge_mask[self.max_seq + self.max_obj_num:, :length] = 1
-        edge_mask[self.max_seq:self.max_seq + self.max_obj_num] = 1
-        edge_mask[self.max_seq:self.max_seq + self.max_obj_num, self.max_seq:self.max_seq + self.max_obj_num] = 1
+        TSG_edge_mask = torch.zeros(self.max_seq + self.max_tobj_num, self.max_seq + self.max_tobj_num)
+        TSG_edge_mask[:length, :length] = 1
+        TSG_edge_mask[self.max_seq + self.max_tobj_num:, :length] = 1
+        TSG_edge_mask[self.max_seq:self.max_seq + self.max_tobj_num] = 1
+        TSG_edge_mask[self.max_seq:self.max_seq + self.max_tobj_num, self.max_seq:self.max_seq + self.max_tobj_num] = 1
+
+        # adjacent matrix for VSG
+        v_objects = self.data_dict['VSG'][idx]['bbox']
+        v_relations = self.data_dict['VSG'][idx]['rel']
+        v_attributes = self.data_dict['VSG'][idx]['bbox_attri']
+        v_attributes_tokens = [self.tokenizer.tokenize(attr) for attr in v_attributes]
+        v_relations_tokens = [self.tokenizer.tokenize(rel['name']) for rel in v_relations]
+        VSG_edge_index = torch.tensor([[rel['s_index'], rel['o_index']] for rel in v_relations], dtype=torch.long)
+        VSG_edge_index = add_self_loops(VSG_edge_index)[0]
+        VSG_adj_matrix = to_dense_adj(VSG_edge_index, max_num_nodes=self.max_vobj_num).squeeze()
+
+        VSG_edge_mask = torch.zeros(self.max_seq + self.max_vobj_num, self.max_seq + self.max_vobj_num)
+        VSG_edge_mask[:length, :length] = 1
+        VSG_edge_mask[self.max_seq + self.max_vobj_num:, :length] = 1
+        VSG_edge_mask[self.max_seq:self.max_seq + self.max_vobj_num] = 1
+        VSG_edge_mask[self.max_seq:self.max_seq + self.max_vobj_num, self.max_seq:self.max_seq + self.max_vobj_num] = 1
 
         # text_bow features
         tbow_features = self.data_dict['tbow_features'][idx]
@@ -201,41 +227,29 @@ class NewMMREDatasetForIB(Dataset):
                 image = Image.open(img_path).convert('RGB')
                 # image = self.transform(image)
                 image = self.clip_processor(images=image, return_tensors='pt')['pixel_values'].squeeze()
+                
             except:
                 img_path = os.path.join(self.img_path, 'inf.png')
                 image = Image.open(img_path).convert('RGB')
                 image = self.clip_processor(images=image, return_tensors='pt')['pixel_values'].squeeze()
-            if self.aux_img_path is not None:
-                # detected object img
-                aux_imgs = []
-                aux_img_paths = []
-                imgid = imgid.split(".")[0]
-                if item_id in self.data_dict['aux_imgs']:
-                    aux_img_paths = self.data_dict['aux_imgs'][item_id]
-                    aux_img_paths = [os.path.join(self.aux_img_path, path) for path in aux_img_paths]
+            v_objects_tokens = []
+            for b in v_objects:
+                crop_img = cv2.imread(img_path)
+                crop_region = crop_img[b[1]:b[3], b[0]:b[2]]
+                im = Image.fromarray(crop_region, mode="RGB")
+                # print(im.size)
+                bbox = self.clip_processor(images=im, return_tensors="pt")['pixel_values'].squeeze()
+                v_objects_tokens.append(bbox)
+        
+        
 
-                # select 3 img
-                for i in range(min(3, len(aux_img_paths))):
-                    aux_img = Image.open(aux_img_paths[i]).convert('RGB')
-                    aux_img = self.aux_processor(images=aux_img, return_tensors='pt')['pixel_values'].squeeze()
-                    aux_imgs.append(aux_img)
-
-                # padding
-                aux_mask = torch.tensor([1 for _ in range(len(aux_imgs))] + [0 for _ in range(3 - len(aux_imgs))])
-                for i in range(3 - len(aux_imgs)):
-                    aux_imgs.append(torch.zeros((3, self.aux_size, self.aux_size)))
-
-                aux_imgs = torch.stack(aux_imgs, dim=0)
-                assert len(aux_imgs) == 3
-
-                return input_ids, pieces2word, attention_mask, token_type_ids, adj_matrix, head_tail_pos, torch.tensor(
-                    re_label), image, aux_imgs, aux_mask, edge_mask, vbow_features, tbow_features
-
-            return input_ids, pieces2word, attention_mask, token_type_ids, adj_matrix, head_tail_pos, torch.tensor(
-                re_label), image, edge_mask, vbow_features, tbow_features
-
-        return input_ids, pieces2word, attention_mask, token_type_ids, adj_matrix, head_tail_pos, torch.tensor(
-            re_label), edge_mask, vbow_features, tbow_features
+        return {"input_ids": input_ids, "pieces2word": pieces2word, "attention_mask": attention_mask,"token_type_ids": token_type_ids,
+                "head_tail_pos": head_tail_pos, "head_object_tokens": head_object_tokens, "tail_object_tokens": tail_object_tokens,
+                "t_objects_tokens": t_objects_tokens, "t_attributes_tokens": t_attributes_tokens, "t_relations_tokens": t_relations_tokens,
+                "v_objects_tokens": v_objects_tokens, "v_attributes_tokens": v_attributes_tokens, "v_relations_tokens": v_relations_tokens,
+                "re_label": torch.tensor(re_label), "image": image, "TSG_adj_matrix": TSG_adj_matrix, "VSG_adj_matrix": VSG_adj_matrix,
+                "TSG_edge_mask": TSG_edge_mask, "VSG_edge_mask": VSG_edge_mask, "vbow_features": vbow_features, "tbow_features": tbow_features,
+                "item_id": item_id, "_relation": _relation}
 
 
 def extend_tensor(tensor, extended_shape, fill=0):
@@ -269,21 +283,19 @@ def padded_stack(tensors, padding=0):
     stacked = torch.stack(padded_tensors)
     return stacked
 
-# def collate_fn_padding(batch):
-#     data_types = len(batch[0])
-#     bsz = len(batch)
-#
-#     for i in range(data_types):
-#         samples = [x for b in range(bsz) for x in batch[b][i]]
-#         if not batch[0][i].shape:
-#             padded_batch[key] = torch.stack(samples)
-#         else:
-#             padded_batch[key] = padded_stack([s[key] for s in batch])
-#
-#     return padded_batch
-#
-#     padded_batch = dict()
-#     keys = batch[0].keys()
+
+def collate_fn_padding(batch):
+    padded_batch = dict()
+    keys = batch[0].keys()
+
+    for key in keys:
+        samples = [s[key] for s in batch]
+        if not batch[0][key].shape:
+            padded_batch[key] = torch.stack(samples)
+        else:
+            padded_batch[key] = padded_stack([s[key] for s in batch])
+
+    return padded_batch
 
 
 

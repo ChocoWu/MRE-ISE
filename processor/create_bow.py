@@ -127,6 +127,19 @@ def extract_visual_words(vision_model, processor, data, visual_bow_size, origina
 
 def extract_vbow_features(file_path, visual_word_path, visual_bow_size, original_img_dir,
                           clip_version="openai/clip-vit-base-patch32"):
+    """
+    extract visual bow features
+    :param file_path: the input data file path.
+    :param visual_word_path: the visual word file path.
+    :param visual_bow_size: the vocabulary size of visual bow.
+    :param original_img_dir: the original image directory.
+    :param clip_version: the vision of pre-trained clip model.
+    :return: 
+        visual bow features: the bow features for each bbox,  [the number of bbox, visual_bow_size]
+        id2token: dict, the visual word vocabulary.
+        vocab: the visual word vocabulary.
+        visual_word: the feature of each cluster centers.
+    """
     print('prepare vision features extractor ...')
     vision_model = CLIPModel.from_pretrained(clip_version)
     for name, param in vision_model.named_parameters():
@@ -179,7 +192,7 @@ def extract_vbow_features(file_path, visual_word_path, visual_bow_size, original
         for w in words:
             vbow_features[i][w] += 1
 
-    return vbow_features, id2token
+    return vbow_features, id2token, vocab, visual_word
 
 
 def extract_text_bow_vocab(train_file_path, target_file, textual_bow_size, stopwords_language="english"):
