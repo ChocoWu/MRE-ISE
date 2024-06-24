@@ -184,35 +184,33 @@ class NewMMREDatasetForIB(Dataset):
         # adjacent matrix for TSG
         t_objects = self.data_dict['TSG'][idx]['obj']   # list
         t_attributes = self.data_dict['TSG'][idx]['attr']  # list
-        t_relations = self.data_dict['TSG'][idx]['rel']  # list[obj, rel, obj]
-        t_objects_tokens = [self.tokenizer.tokenize(obj) for obj in t_objects]
-        t_attributes_tokens = [self.tokenizer.tokenize(' '.join(attr.reverse())) for attr in t_attributes]
-        t_relations_tokens = [self.tokenizer.tokenize(' '.join(rel)) for rel in t_relations]
+        assert len(t_objects) == len(t_attributes)
+        t_relations = ['None'] + self.data_dict['TSG'][idx]['rel']  # list[obj, rel, obj]
+        t_objects_tokens = torch.tensor([self.tokenizer.tokenize(obj) for obj in t_objects], dtype=torch.long)
+        t_attributes_tokens = torch.tensor([self.tokenizer.tokenize(' '.join(attr.reverse())) for attr in t_attributes], dtype=torch.long)
+        t_relations_tokens = torch.tensor([self.tokenizer.tokenize(' '.join(rel)) for rel in t_relations], dtype=torch.long)
+        # t_relations_tokens = [rel for rel in t_relations_tokens if len(rel) > 0]
         TSG_edge_index = torch.tensor([[t_objects.index(rel[0]), t_objects.index(rel[-1])] for rel in t_relations], dtype=torch.long)
-        TSG_edge_index = add_self_loops(TSG_edge_index)[0]
-        TSG_adj_matrix = to_dense_adj(TSG_edge_index, max_num_nodes=self.max_tobj_num).squeeze()
+        TSG_edge_attr = torch.tensor([idx+1 for idx, _ in enumerate(t_relations)], dtype=torch.long)
+        # TSG_edge_index = add_self_loops(TSG_edge_index)[0]
+        TSG_adj_matrix = to_dense_adj(TSG_edge_index, edge_attr=TSG_edge_attr).squeeze()
 
-        TSG_edge_mask = torch.zeros(self.max_seq + self.max_tobj_num, self.max_seq + self.max_tobj_num)
-        TSG_edge_mask[:length, :length] = 1
-        TSG_edge_mask[self.max_seq + self.max_tobj_num:, :length] = 1
-        TSG_edge_mask[self.max_seq:self.max_seq + self.max_tobj_num] = 1
-        TSG_edge_mask[self.max_seq:self.max_seq + self.max_tobj_num, self.max_seq:self.max_seq + self.max_tobj_num] = 1
+        TSG_edge_mask = torch.zeros(self.max_tobj_num, self.max_tobj_num)
+        TSG_edge_mask[:len(t_objects), :len(t_objects)] = 1
 
         # adjacent matrix for VSG
-        v_objects = self.data_dict['VSG'][idx]['bbox']
-        v_relations = self.data_dict['VSG'][idx]['rel']
+        v_objects = self.data_dict['VSG'][idx]['bbox']  # already adding a default bbox for the whole image [0, 0, width, height]
+        v_relations = ['None', 'similar'] + self.data_dict['VSG'][idx]['rel']  # 'similar' is a default relation between TSG and VSG
         v_attributes = self.data_dict['VSG'][idx]['bbox_attri']
-        v_attributes_tokens = [self.tokenizer.tokenize(attr) for attr in v_attributes]
-        v_relations_tokens = [self.tokenizer.tokenize(rel['name']) for rel in v_relations]
+        v_attributes_tokens = torch.tensor([self.tokenizer.tokenize(attr) for attr in v_attributes], dtype=torch.long)
+        v_relations_tokens = torch.tensor([self.tokenizer.tokenize(rel['name']) for rel in v_relations], dtype=torch.long)
         VSG_edge_index = torch.tensor([[rel['s_index'], rel['o_index']] for rel in v_relations], dtype=torch.long)
-        VSG_edge_index = add_self_loops(VSG_edge_index)[0]
-        VSG_adj_matrix = to_dense_adj(VSG_edge_index, max_num_nodes=self.max_vobj_num).squeeze()
+        VSG_edge_attr = torch.tensor([idx+2 for idx, _ in enumerate(v_relations)], dtype=torch.long)
+        # VSG_edge_index = add_self_loops(VSG_edge_index)[0]
+        VSG_adj_matrix = to_dense_adj(VSG_edge_index, edge_attr=VSG_edge_attr).squeeze()
 
-        VSG_edge_mask = torch.zeros(self.max_seq + self.max_vobj_num, self.max_seq + self.max_vobj_num)
-        VSG_edge_mask[:length, :length] = 1
-        VSG_edge_mask[self.max_seq + self.max_vobj_num:, :length] = 1
-        VSG_edge_mask[self.max_seq:self.max_seq + self.max_vobj_num] = 1
-        VSG_edge_mask[self.max_seq:self.max_seq + self.max_vobj_num, self.max_seq:self.max_seq + self.max_vobj_num] = 1
+        VSG_edge_mask = torch.zeros(self.max_vobj_num, self.max_vobj_num)
+        VSG_edge_mask[:len(v_objects), :len(v_objects)] = 1
 
         # text_bow features
         tbow_features = self.data_dict['tbow_features'][idx]
@@ -240,7 +238,6 @@ class NewMMREDatasetForIB(Dataset):
                 # print(im.size)
                 bbox = self.clip_processor(images=im, return_tensors="pt")['pixel_values'].squeeze()
                 v_objects_tokens.append(bbox)
-        
         
 
         return {"input_ids": input_ids, "pieces2word": pieces2word, "attention_mask": attention_mask,"token_type_ids": token_type_ids,

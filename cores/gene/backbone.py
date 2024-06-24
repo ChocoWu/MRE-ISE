@@ -99,42 +99,46 @@ class FustionLayer(nn.Module):
                                 nn.ReLU())
         self.reset_parameters()
 
-    def forward(self, text_hidden_states=None, text_attention_mask=None, text_adj_matrix=None, threshold=0.5,
-                 imgs_hidden_states=None, img_attention_mask=None, img_adj_matrix=None):
+    def forward(self, text_obj_hidden_states=None, text_attention_mask=None, text_adj_matrix=None, 
+                 imgs_obj_hidden_states=None, img_attention_mask=None, img_adj_matrix=None,
+                 threshold=0.5):
         """
         build cross_modal graph.
         we build an edge between a and b only the semantic similarity sem_sim(a, b) > threshold.
-        :param text_hidden_states: [batch_size, seq_len, in_features]
-        :param text_adj_matrix: [batch_size, seq_len, seq_len]
-        :param text_attention_mask: [batch_size, seq_len]
-        :param imgs_hidden_states: [batch_size, num_objects, in-features]
-        :param img_adj_matrix: [batch_size, obj_num, obj_num]
-        :param img_attention_mask: [batch_size, obj_num]
+        :param text_obj_hidden_states: [batch_size, num_t_objects, in_features]
+        :param text_adj_matrix: [batch_size, num_v_objects, num_t_objects]
+        :param text_attention_mask: [batch_size, num_t_objects]
+        :param imgs_obj_hidden_states: [batch_size, num_v_objects, in-features]
+        :param img_adj_matrix: [batch_size, num_v_objects, num_v_objects]
+        :param img_attention_mask: [batch_size, num_v_objects]
+        :param threshold: float
         """
-        batch_size, seq_len = text_hidden_states.size(0), text_hidden_states.size(1)
-        num_objects = imgs_hidden_states.size(1)
+        batch_size, num_t_objects = text_obj_hidden_states.size(0), text_obj_hidden_states.size(1)
+        num_v_objects = imgs_obj_hidden_states.size(1)
 
-        _x = self.ln(text_hidden_states)
-        _y = self.ln(imgs_hidden_states)
+        _x = self.ln(text_obj_hidden_states)
+        _y = self.ln(imgs_obj_hidden_states)
         _temp = F.sigmoid(torch.bmm(_x, _y.transpose(1, 2)))
+
         min_value = torch.min(_temp)
 
         _temp = _temp.masked_fill_(1 - text_attention_mask.byte().unsqueeze(-1), min_value)
         if img_attention_mask is not None:
             _temp = _temp.masked_fill_(1 - img_attention_mask.byte().unsqueeze(1), min_value)
 
-        max_num_nodes = seq_len + num_objects
+        max_num_nodes = num_t_objects + num_v_objects
         size = [batch_size, max_num_nodes, max_num_nodes]
         new_adj_matrix = []
         for b in range(batch_size):
-            old_text_edges = dense_to_sparse(text_adj_matrix[b])[0]
+            old_text_edges, old_text_edges_attr = dense_to_sparse(text_adj_matrix[b])
             new_edges = (_temp[b] > threshold).nonzero()
             head = new_edges[:, 0]
-            tail = new_edges[:, 1] + seq_len
+            tail = new_edges[:, 1] + num_t_objects
             if img_attention_mask is not None:
-                old_img_edges = dense_to_sparse(img_adj_matrix[b])[0]
-                old_img_edges = [old_img_edges[i]+seq_len for i in range(2)]
+                old_img_edges, old_img_edges_attr = dense_to_sparse(img_adj_matrix[b])
+                old_img_edges = [old_img_edges[i]+num_t_objects for i in range(2)]
                 edge_index = torch.stack([torch.cat([old_text_edges[0], head, old_img_edges[0]]), torch.cat([old_text_edges[1], tail, old_img_edges[1]])], dim=0)
+                edges_attr = torch.cat([old_text_edges_attr, _temp[b][head, tail], old_img_edges_attr], dim=0)
             else:
                 edge_index = torch.stack([torch.cat([old_text_edges[0], head]), torch.cat([old_text_edges[1], tail])], dim=0)
 
@@ -490,5 +494,6 @@ class DynamicLSTM(nn.Module):
                 ct = torch.transpose(ct, 0, 1)
 
             return out, (ht, ct)
+
 
 

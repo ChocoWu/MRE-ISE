@@ -28,6 +28,7 @@ class MRE(nn.Module):
         # construct cross-modal graph
         self.text_linear = nn.Linear(text_config.hidden_size, args.hid_size)
         self.vision_linear = nn.Linear(vision_config.hidden_size, args.hid_size)
+        self.v_abj_attr_linear = nn.Linear(vision_config.hidden_size*2, vision_config.hidden_size)
 
         self.fuse = FustionLayer(args.hid_size)
         self.cross_GAT_layers = GAT(args.hid_size, args.hid_size, 0, args.dropout, alpha=0)
@@ -52,41 +53,67 @@ class MRE(nn.Module):
         self.classifier1 = nn.Linear(args.hid_size, num_labels)
         self.classifier2 = nn.Linear(args.hid_size * 3, num_labels)
 
-    def forward(self, input_ids=None, attention_mask=None, head_tail_pos=None, piece2word=None,
-                adj_matrix=None, labels=None, aux_imgs=None, aux_mask=None, edge_mask=None, writer=None, step=None,
+    def forward(self, input_ids=None, attention_mask=None, piece2word=None,
+                head_tail_pos=None,  head_object_tokens=None, tail_object_tokens=None,
+                t_objects_tokens=None, t_attributes_tokens=None, t_relations_tokens=None, 
+                v_objects_tokens=None,  v_attributes_tokens=None, v_relations_tokens=None,
+                TSG_adj_matrix=None, TSG_edge_mask=None, VSG_adj_matrix=None, VSG_edge_mask=None,
+                labels=None, writer=None, step=None,
                 X_T_bow=None, X_V_bow=None):
         """
         :param input_ids: [batch_size, seq_len]
         :param attention_mask: [batch_size, seq_len]
-        :param head_tail_pos: [batch_size, 4]
         :param piece2word: [batch_size, seq_len, seq_len]
-        :param adj_matrix: [batch_size, seq_len, seq_len]
+        :param head_tail_pos: [batch_size, 4]
+        :param head_object_tokens: [batch_size, head_obj_seq_len]
+        :param tail_object_tokens: [batch_size, tail_obj_seq_len]
+        :param t_objects_tokens: [batch_size, num_t_objects, t_obj_seq_len]
+        :param t_attributes_tokens: [batch_size, num_t_objects, t_attr_seq_len]
+        :param t_relations_tokens: [batch_size, num_t_relations, t_rel_seq_len]
+        :param v_objects_tokens: [batch_size, num_v_objects, v_obj_seq_len]
+        :param v_attributes_tokens: [batch_size, num_v_objects, v_attr_seq_len]
+        :param v_relations_tokens: [batch_size,  num_v_relations, v_rel_seq_len]
+        :param TSG_adj_matrix: [batch_size, num_t_objects, num_t_objects]
+        :param TSG_edge_mask: [batch_size, num_t_objects, num_t_objects]
+        :param VSG_adj_matrix: [batch_size, num_v_objects, num_v_objects]
+        :param VSG_edge_mask: [batch_size, num_v_objects, num_v_objects]
+        :param labels: [batch_size]
 
         """
         bsz = input_ids.size(0)
-        text_hidden_state = self.text_model(input_ids, attention_mask).last_hidden_state
+        text_hidden_state = self.text_model(input_ids, attention_mask).pooler_output
 
-        length = piece2word.size(1)
-        min_value = torch.min(text_hidden_state).item()
-        # Max pooling word representations from pieces
-        _bert_embs = text_hidden_state.unsqueeze(1).expand(-1, length, -1, -1)
-        _bert_embs = torch.masked_fill(_bert_embs, piece2word.eq(0).unsqueeze(-1), min_value)
-        text_hidden_states, _ = torch.max(_bert_embs, dim=2)
+        head_obj_hidden_state = self.text_model(head_object_tokens, attention_mask=head_object_tokens.ne(0)).last_hidden_state
+        tail_obj_hidden_state = self.text_model(tail_object_tokens, attention_mask=tail_object_tokens.ne(0)).last_hidden_state
 
-        imgs_hidden_states = []
-        aux_num = aux_imgs.size(1)
-        for i in range(bsz):
-            temp = []
-            for j in range(aux_num):
-                _temp = self.vision_model(aux_imgs[i, j, :, :].unsqueeze(0)).pooler_output
-                temp.append(_temp.squeeze())
-            imgs_hidden_states.append(torch.stack(temp, dim=0))
-        imgs_hidden_states = torch.stack(imgs_hidden_states, dim=0)
+        # encoding the objects and relations in TSG and VSG
+        num_t_objects = t_objects_tokens.size(1)
+        t_attr_seq_len = t_attributes_tokens.size(-1)
+        assert t_attributes_tokens.size(1) == t_objects_tokens.size(1)
+        t_objects_hidden_states = self.text_model(t_objects_tokens.view(-1, t_attr_seq_len), attention_mask=t_attributes_tokens.ne(0)).last_hidden_state
+        t_objects_hidden_states = t_objects_hidden_states.sum(-2).view(bsz, num_t_objects, -1)
+        num_t_relations, t_rel_seq_len = t_relations_tokens.size(1), t_relations_tokens.size(-1)
+        t_relations_hidden_states = self.text_model(t_relations_tokens.view(-1, t_rel_seq_len), attention_mask=t_relations_tokens.ne(0)).last_hidden_state
+        t_relations_hidden_states = t_relations_hidden_states.sum(-2).view(bsz, num_t_relations, -1)
 
-        text_hidden_states = self.text_linear(text_hidden_states)
-        imgs_hidden_states = self.vision_linear(imgs_hidden_states)
+        num_v_objects = v_objects_tokens.size(1)
+        v_attr_seq_len = v_attributes_tokens.size(-1)
+        assert v_attributes_tokens.size(1) == v_objects_tokens.size(1)
+        v_objects_txt_hidden_states = self.text_model(v_attributes_tokens.view(-1, v_attr_seq_len)).last_hidden_state
+        v_objects_txt_hidden_states = v_objects_txt_hidden_states.sum(-2).view(bsz, num_v_objects, -1)
+        v_objects_img_hidden_states = self.vision_model(v_objects_tokens.view(-1, v_attr_seq_len)).pooler_output
+        v_objects_hidden_states = self.v_abj_attr_linear(torch.cat([v_objects_txt_hidden_states, v_objects_img_hidden_states], dim=-1))
+        num_v_relations, v_rel_seq_len = v_relations_tokens.size(1), v_relations_tokens.size(-1)
+        v_relations_hidden_states = self.text_model(v_relations_tokens.view(-1, v_rel_seq_len)).last_hidden_state
+        v_relations_hidden_states = v_relations_hidden_states.sum(-2).view(bsz, num_v_relations, -1)
 
-        adj = self.fuse(text_hidden_states, attention_mask, adj_matrix, self.args.threshold, imgs_hidden_states)
+
+        # encoding the objects and relations in TSG and VSG
+        text_hidden_states = self.text_linear(t_objects_hidden_states)
+        imgs_hidden_states = self.vision_linear(v_objects_hidden_states)
+
+        adj = self.fuse(text_hidden_states, attention_mask, text_adj_matrix=TSG_adj_matrix, threshold=self.args.threshold, 
+                        imgs_hidden_states=imgs_hidden_states, img_attention_mask=attention_mask, img_adj_matrix=VSG_adj_matrix)
         hidden_states = torch.cat([text_hidden_states, imgs_hidden_states], dim=1)
         hidden_states = self.cross_GAT_layers(hidden_states, adj)
 

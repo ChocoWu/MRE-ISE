@@ -106,7 +106,7 @@ def combine(meta_data, tuple_data, target_file):
                 relation.append(i['tuple'])
             else:
                 raise EOFError('no SG obtained')
-        md['TSG'] = {'obj': obj, 'attr': attr, 'rel': relation}
+        md['TSG'] = {'obj': set(obj), 'attr': set(attr), 'rel': set(relation)}
 
     with open(target_file, 'w', encoding='utf-8') as f:
         json.dump(meta_data, f)
