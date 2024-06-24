@@ -56,16 +56,20 @@ class GAT(nn.Module):
 
         self.reset_parameters()
 
-    def forward(self, hidden_state, adjacent_matrix=None):
+    def forward(self, hidden_state, adjacent_matrix=None, relation_matrix=None):
         """
-        :param hidden_state: [batch_size, seq_len, in_features]
-        :param adjacent_matrix: [batch_size, seq_len, seq_len]
+        :param hidden_state: [batch_size, num_t_objects+num_v_objects, in_features]
+        :param adjacent_matrix: [batch_size, num_t_objects+num_v_objects, num_t_objects+num_v_objects]
+        :param relation_matrix: [batch_size, num_t_relations+num_v_relations, in_features]
         """
         _x = self.linear(hidden_state)
         e = self._para_attentional_mechanism_input(_x)
 
-        zero_vec = -9e15 * torch.ones_like(e)
-        attention = torch.where(adjacent_matrix > 0.5, e, zero_vec)
+        if relation_matrix is not None:
+            rela_vec = e + self.get_relation_matrix(adjacent_matrix, relation_matrix)
+        else:
+            rela_vec = -9e15 * torch.ones_like(e)
+        attention = torch.where(adjacent_matrix > 0.5, e, rela_vec)
         attention = F.softmax(attention, dim=1)
         attention = F.dropout(attention, self.dropout, training=self.training)
         h_prime = torch.matmul(attention, _x)
@@ -88,6 +92,21 @@ class GAT(nn.Module):
     def reset_parameters(self):
         self.linear.reset_parameters()
 
+    def get_relation_matrix(self, adjacent_matrix, relation_matrix):
+        """
+        :param hidden_state: [batch_size,, num_t_objects+num_v_objects, num_t_objects+num_v_objects]
+        :param relation_matrix: [batch_size, num_t_relations+num_v_relations, in_features]
+        """
+        batch_size, num_nodes = adjacent_matrix.size(0), adjacent_matrix.size(1)
+        new_adjacent_matrix = []
+        for b in range(batch_size):
+            edge_inde, edge_attr = dense_to_sparse(adjacent_matrix[b])
+            new_edge_attr = torch.index_select(relation_matrix[b], 0, edge_attr)
+            adj = to_dense_adj(edge_inde, edge_attr=new_edge_attr)
+            new_adjacent_matrix.append(adj)
+        new_adjacent_matrix = torch.stack(new_adjacent_matrix, dim=0)
+        return new_adjacent_matrix
+
     def __repr__(self):
         return self.__class__.__name__ + ' (' + str(self.in_features) + ' -> ' + str(self.out_features) + ')'
 
@@ -95,22 +114,24 @@ class GAT(nn.Module):
 class FustionLayer(nn.Module):
     def __init__(self, hid_size):
         super(FustionLayer, self).__init__()
-        self.ln = nn.Sequential(nn.Linear(1 * hid_size, 1 * hid_size),
+        self.ln = nn.Sequential(nn.Linear(hid_size, hid_size),
                                 nn.ReLU())
         self.reset_parameters()
 
-    def forward(self, text_obj_hidden_states=None, text_attention_mask=None, text_adj_matrix=None, 
-                 imgs_obj_hidden_states=None, img_attention_mask=None, img_adj_matrix=None,
+    def forward(self, text_obj_hidden_states=None, text_attention_mask=None, text_adj_matrix=None, text_rela_hidden_states=None,
+                 imgs_obj_hidden_states=None, imgs_attention_mask=None, imgs_adj_matrix=None, imgs_rela_hidden_states=None,
                  threshold=0.5):
         """
         build cross_modal graph.
         we build an edge between a and b only the semantic similarity sem_sim(a, b) > threshold.
-        :param text_obj_hidden_states: [batch_size, num_t_objects, in_features]
+        :param text_obj_hidden_states: [batch_size, num_t_objects, hid_size]
         :param text_adj_matrix: [batch_size, num_v_objects, num_t_objects]
+        :param text_rela_hidden_states: [batch_size, num_t_relations, hid_size]
         :param text_attention_mask: [batch_size, num_t_objects]
-        :param imgs_obj_hidden_states: [batch_size, num_v_objects, in-features]
-        :param img_adj_matrix: [batch_size, num_v_objects, num_v_objects]
-        :param img_attention_mask: [batch_size, num_v_objects]
+        :param imgs_obj_hidden_states: [batch_size, num_v_objects, hid_size]
+        :param imgs_adj_matrix: [batch_size, num_v_objects, num_v_objects]
+        :param imgs_rela_hidden_states: [batch_size, num_t_relations, hid_size]
+        :param imgs_attention_mask: [batch_size, num_v_objects]
         :param threshold: float
         """
         batch_size, num_t_objects = text_obj_hidden_states.size(0), text_obj_hidden_states.size(1)
@@ -123,30 +144,35 @@ class FustionLayer(nn.Module):
         min_value = torch.min(_temp)
 
         _temp = _temp.masked_fill_(1 - text_attention_mask.byte().unsqueeze(-1), min_value)
-        if img_attention_mask is not None:
-            _temp = _temp.masked_fill_(1 - img_attention_mask.byte().unsqueeze(1), min_value)
+        if imgs_attention_mask is not None:
+            _temp = _temp.masked_fill_(1 - imgs_attention_mask.byte().unsqueeze(1), min_value)
 
         max_num_nodes = num_t_objects + num_v_objects
         size = [batch_size, max_num_nodes, max_num_nodes]
         new_adj_matrix = []
         for b in range(batch_size):
+            # old_text_edges: tensor[2, num_edges], old_text_edges_attr: tensor[num_edges]
             old_text_edges, old_text_edges_attr = dense_to_sparse(text_adj_matrix[b])
-            new_edges = (_temp[b] > threshold).nonzero()
-            head = new_edges[:, 0]
-            tail = new_edges[:, 1] + num_t_objects
-            if img_attention_mask is not None:
-                old_img_edges, old_img_edges_attr = dense_to_sparse(img_adj_matrix[b])
-                old_img_edges = [old_img_edges[i]+num_t_objects for i in range(2)]
-                edge_index = torch.stack([torch.cat([old_text_edges[0], head, old_img_edges[0]]), torch.cat([old_text_edges[1], tail, old_img_edges[1]])], dim=0)
-                edges_attr = torch.cat([old_text_edges_attr, _temp[b][head, tail], old_img_edges_attr], dim=0)
-            else:
-                edge_index = torch.stack([torch.cat([old_text_edges[0], head]), torch.cat([old_text_edges[1], tail])], dim=0)
+            new_edges = (_temp[b] > threshold).nonzero()  # tensor[num, 2]
+            head_1 = new_edges[:, 0]
+            tail_1 = new_edges[:, 1] + num_t_objects
+            head_2 = new_edges[:, 1] + num_t_objects
+            tail_2 = new_edges[:, 0]
+            # old_img_edges: tensor[2, num_edges], old_img_edges_attr: tensor[num_edges]
+            old_img_edges, old_img_edges_attr = dense_to_sparse(imgs_adj_matrix[b])
+            new_img_edges = [old_img_edges[i]+num_t_objects for i in range(2)]
+            new_img_edges_attr = old_img_edges_attr + torch.max(old_text_edges_attr).item() + 1
 
-            raw_adj = to_dense_adj(edge_index, max_num_nodes=max_num_nodes)
+            edge_index = torch.stack([torch.cat([old_text_edges[0], head_1, head_2, new_img_edges[0]]), torch.cat([old_text_edges[1], tail_1, tail_2, new_img_edges[1]])], dim=0)
+            edge_attr = torch.cat([old_text_edges_attr, [torch.max(old_text_edges_attr).item()+1] * new_edges.size(0) * 2, new_img_edges_attr], dim=0)
+
+            raw_adj = to_dense_adj(edge_index, max_num_nodes=max_num_nodes, edge_attr=edge_attr)
             new_adj_matrix.append(raw_adj)
+        
         new_adj = torch.stack(new_adj_matrix, dim=0).squeeze().view(size)
+        new_rela_hidden_states = torch.cat([text_rela_hidden_states, imgs_rela_hidden_states], dim=1)
 
-        return new_adj
+        return new_adj, new_rela_hidden_states
 
     def reset_parameters(self):
         for layer in self.ln:
@@ -496,4 +522,26 @@ class DynamicLSTM(nn.Module):
             return out, (ht, ct)
 
 
+
+if __name__ == "__main__":
+    fuse = FustionLayer(50)
+    text_obj_hidden_states = torch.randn(4, 10, 50)
+    text_edge_index = torch.tensor([[0, 0, 1, 2, 3, 3, 5, 7, 8, 9],
+                           [0, 1, 0, 3, 0, 7, 8, 4, 5, 6]])
+    batch = torch.tensor([0, 0, 1, 1, 2, 2, 3, 3, 3, 3])
+    text_edge_attr = torch.tensor([torch.randint(10) for _ in range(10)])
+    text_adj_matrix = to_dense_adj(text_edge_index, batch=batch, edge_attr=text_edge_attr)
+    text_attention_mask = torch.randn(4, 10)
+
+    imgs_obj_hidden_states = torch.randn(4, 6, 50)
+    imgs_edge_index = torch.tensor([[0, 1, 0, 2, 3, 3, 5],
+                           [0, 0, 1, 3, 0, 4, 3]])
+    batch = torch.tensor([0, 0, 1, 1, 2, 2, 3])
+    imgs_edge_attr = torch.tensor([torch.randint(8) for _ in range(7)])
+    imgs_adj_matrix = to_dense_adj(imgs_edge_index, batch=batch, edge_attr=imgs_edge_attr)
+    imgs_attention_mask = torch.randn(4, 6)
+    threshold = 0.5
+    new_adj = fuse(text_obj_hidden_states, text_attention_mask, text_adj_matrix, 
+                   imgs_obj_hidden_states, imgs_attention_mask, imgs_adj_matrix, 
+                   threshold)
 

@@ -200,12 +200,12 @@ class NewMMREDatasetForIB(Dataset):
 
         # adjacent matrix for VSG
         v_objects = self.data_dict['VSG'][idx]['bbox']  # already adding a default bbox for the whole image [0, 0, width, height]
-        v_relations = ['None', 'similar'] + self.data_dict['VSG'][idx]['rel']  # 'similar' is a default relation between TSG and VSG
+        v_relations = ['similar'] + self.data_dict['VSG'][idx]['rel']  # 'similar' is a default relation between TSG and VSG
         v_attributes = self.data_dict['VSG'][idx]['bbox_attri']
         v_attributes_tokens = torch.tensor([self.tokenizer.tokenize(attr) for attr in v_attributes], dtype=torch.long)
         v_relations_tokens = torch.tensor([self.tokenizer.tokenize(rel['name']) for rel in v_relations], dtype=torch.long)
         VSG_edge_index = torch.tensor([[rel['s_index'], rel['o_index']] for rel in v_relations], dtype=torch.long)
-        VSG_edge_attr = torch.tensor([idx+2 for idx, _ in enumerate(v_relations)], dtype=torch.long)
+        VSG_edge_attr = torch.tensor([idx+1 for idx, _ in enumerate(v_relations)], dtype=torch.long)
         # VSG_edge_index = add_self_loops(VSG_edge_index)[0]
         VSG_adj_matrix = to_dense_adj(VSG_edge_index, edge_attr=VSG_edge_attr).squeeze()
 

@@ -28,7 +28,9 @@ class MRE(nn.Module):
         # construct cross-modal graph
         self.text_linear = nn.Linear(text_config.hidden_size, args.hid_size)
         self.vision_linear = nn.Linear(vision_config.hidden_size, args.hid_size)
-        self.v_abj_attr_linear = nn.Linear(vision_config.hidden_size*2, vision_config.hidden_size)
+        self.v_abj_attr_linear = nn.Linear(text_config.hidden_size + vision_config.hidden_size, args.hid_size)
+        self.text_rela_linear = nn.Linear(text_config.hidden_size, args.hid_size)
+        self.vision_rela_linear = nn.Linear(text_config.hidden_size, args.hid_size)
 
         self.fuse = FustionLayer(args.hid_size)
         self.cross_GAT_layers = GAT(args.hid_size, args.hid_size, 0, args.dropout, alpha=0)
@@ -111,11 +113,14 @@ class MRE(nn.Module):
         # encoding the objects and relations in TSG and VSG
         text_hidden_states = self.text_linear(t_objects_hidden_states)
         imgs_hidden_states = self.vision_linear(v_objects_hidden_states)
+        t_relations_hidden_states = self.text_rela_linear(t_relations_hidden_states)
+        v_relations_hidden_states = self.vision_rela_linear(v_relations_hidden_states)
 
-        adj = self.fuse(text_hidden_states, attention_mask, text_adj_matrix=TSG_adj_matrix, threshold=self.args.threshold, 
-                        imgs_hidden_states=imgs_hidden_states, img_attention_mask=attention_mask, img_adj_matrix=VSG_adj_matrix)
+        adj, rela = self.fuse(text_hidden_states, attention_mask, text_adj_matrix=TSG_adj_matrix, text_rela_hidden_states=t_relations_hidden_states, 
+                        imgs_hidden_states=imgs_hidden_states, img_attention_mask=attention_mask, img_adj_matrix=VSG_adj_matrix, imgs_rela_hidden_states=v_relations_hidden_states,
+                        threshold=self.args.threshold)
         hidden_states = torch.cat([text_hidden_states, imgs_hidden_states], dim=1)
-        hidden_states = self.cross_GAT_layers(hidden_states, adj)
+        hidden_states = self.cross_GAT_layers(hidden_states, adj, rela)
 
         prior_mean, prior_variance, posterior_mean, posterior_variance, \
         posterior_log_variance, text_word_dists, visual_word_dists, estimated_labels = self.topic_model(X_T_bow,
@@ -130,7 +135,7 @@ class MRE(nn.Module):
         topic_loss = self.topic_kl_weight * kl_loss + t_rl_loss + v_rl_loss
         topic_loss = topic_loss.sum()
 
-        node_mask = torch.cat([attention_mask, aux_mask], dim=-1)
+        node_mask = torch.cat([t_objects_tokens.ne(0).sum(1).ne(0), v_objects_tokens.ne(0).sum(1).ne(0)], dim=-1)
         for layer in self.adjust_layers:
             new_feature, new_adj = self.learn_graph(node_features=hidden_states,
                                                     graph_skip_conn=self.args.graph_skip_conn,
