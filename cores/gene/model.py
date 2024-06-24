@@ -53,7 +53,7 @@ class MRE(nn.Module):
             args.dropout, args.learn_priors, label_size=args.label_size)
         self.topic_keywords_number = args.topic_keywords_number
         self.classifier1 = nn.Linear(args.hid_size, num_labels)
-        self.classifier2 = nn.Linear(args.hid_size * 3, num_labels)
+        self.classifier2 = nn.Linear(args.hid_size * 3 + text_config.hidden_size*3, num_labels)
 
     def forward(self, input_ids=None, attention_mask=None, piece2word=None,
                 head_tail_pos=None,  head_object_tokens=None, tail_object_tokens=None,
@@ -135,7 +135,16 @@ class MRE(nn.Module):
         topic_loss = self.topic_kl_weight * kl_loss + t_rl_loss + v_rl_loss
         topic_loss = topic_loss.sum()
 
-        node_mask = torch.cat([t_objects_tokens.ne(0).sum(1).ne(0), v_objects_tokens.ne(0).sum(1).ne(0)], dim=-1)
+        t_node_mask = t_objects_tokens.ne(0).sum(1).ne(0)
+        v_node_mask = v_objects_tokens.ne(0).sum(1).ne(0)
+        node_mask = torch.cat([t_node_mask, v_node_mask], dim=-1)
+        edge_mask = torch.zeros_like(adj)
+        edge_mask[:, :num_t_objects, :num_t_objects] = TSG_edge_mask    
+        edge_mask[:, num_t_objects:, num_t_objects:] = VSG_edge_mask
+        for b in range(bsz):
+            edge_mask[b, :torch.count_nonzero(t_node_mask[b]).item(), num_t_objects:torch.count_nonzero(v_node_mask[b]).item()+num_t_objects] = 1
+            edge_mask[b, num_t_objects:torch.count_nonzero(v_node_mask[b]).item()+num_t_objects, :torch.count_nonzero(t_node_mask[b]).item()] = 1
+        edge_mask[:, :num_t_objects, ] = 0.0
         for layer in self.adjust_layers:
             new_feature, new_adj = self.learn_graph(node_features=hidden_states,
                                                     graph_skip_conn=self.args.graph_skip_conn,
@@ -143,8 +152,7 @@ class MRE(nn.Module):
                                                     init_adj=adj, node_mask=node_mask)
             adj = torch.mul(new_adj, edge_mask)
             hidden_states = layer(new_feature, adj)
-            # hidden_states = new_hidden_states
-            # adj = new_adj
+
         edge_number = self.cnt_edges(adj)
         writer.add_scalar(tag='edge_number', scalar_value=edge_number/bsz,
                           global_step=step)  # tensorbordx
@@ -187,7 +195,7 @@ class MRE(nn.Module):
         T_topic_inte = self._topic_words_attention(T_component_words_emb, z)
         V_topic_inte = self._topic_words_attention(V_component_words_emb, z)
 
-        s = torch.cat([z, T_topic_inte, V_topic_inte], dim=-1)
+        s = torch.cat([z, T_topic_inte, V_topic_inte, text_hidden_state, head_obj_hidden_state, tail_obj_hidden_state], dim=-1)
 
         logits2 = self.classifier2(s)
         return (mu, std), logits1, logits2, topic_loss
