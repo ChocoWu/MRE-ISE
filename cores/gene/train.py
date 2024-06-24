@@ -115,8 +115,7 @@ class Trainer(object):
                 total_loss = 0
                 for batch in self.dev_data:
                     step += 1
-                    batch = (tup.to(self.args.device) if isinstance(tup, torch.Tensor) else tup for tup in
-                             batch)  # to cpu/cuda device
+                    batch = to_device(batch, self._device)  # to cpu/cuda device
                     (mu, std), logits1, logits2, labels, topic_loss = self._step(batch, mode="dev")
                     GIB_loss = self.loss_func(logits1, labels.view(-1))
                     task_loss = self.loss_func(logits2, labels.view(-1))
@@ -174,8 +173,7 @@ class Trainer(object):
                 pbar.set_description_str(desc="Testing")
                 total_loss = 0
                 for batch in self.test_data:
-                    batch = (tup.to(self.args.device) if isinstance(tup, torch.Tensor) else tup for tup in
-                             batch)  # to cpu/cuda device
+                    batch = to_device(batch, self._device)  # to cpu/cuda device
                     (mu, std), logits1, logits2, labels, topic_loss = self._step(batch, mode="dev")
                     GIB_loss = self.loss_func(logits1, labels.view(-1))
                     task_loss = self.loss_func(logits2, labels.view(-1))
@@ -214,9 +212,14 @@ class Trainer(object):
         self.model.train()
 
     def _step(self, batch, mode="train", step=0):
-        (mu, std), logits1, logits2, topic_loss = self.model(batch, writer=self.writer, step=step)
+        (mu, std), logits1, logits2, topic_loss = self.model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], piece2word=batch["piece2word"],
+                head_tail_pos=batch["head_tail_pos"],  head_object_tokens=batch["head_object_tokens"], tail_object_tokens=batch["tail_object_tokens"],
+                t_objects_tokens=batch["t_objects_tokens"], t_attributes_tokens=batch["t_attributes_tokens"], t_relations_tokens=batch["t_relations_tokens"], 
+                v_objects_tokens=batch["v_objects_tokens"],  v_attributes_tokens=batch["v_attributes_tokens"], v_relations_tokens=batch["v_relations_tokens"],
+                TSG_adj_matrix=batch["TSG_adj_matrix"], TSG_edge_mask=batch["TSG_edge_mask"], VSG_adj_matrix=batch["VSG_adj_matrix"], VSG_edge_mask=batch["VSG_edge_mask"],
+                labels=batch["_relation"], X_T_bow=batch["X_T_bow"], X_V_bow=batch["X_V_bow"], writer=self.writer, step=step)
 
-        return (mu, std), logits1, logits2, topic_loss
+        return (mu, std), logits1, logits2, batch["_relation"], topic_loss
 
     def before_multimodal_train(self):
         pretrained_params = []
