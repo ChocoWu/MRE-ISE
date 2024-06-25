@@ -146,7 +146,7 @@ class NewMMREDatasetForIB(Dataset):
         word_list, relation, head_d, tail_d, imgid = self.data_dict['words'][idx], self.data_dict['relations'][idx], \
                                                      self.data_dict['heads'][idx], self.data_dict['tails'][idx], \
                                                      self.data_dict['imgids'][idx]
-        _relation = self.re2id[idx]
+        # _relation = self.re2id[relation]
         item_id = self.data_dict['dataid'][idx]
         # [CLS] ... <s> head </s> ... <o> tail <o/> .. [SEP]
         head_pos, tail_pos = head_d['pos'], tail_d['pos']
@@ -246,7 +246,7 @@ class NewMMREDatasetForIB(Dataset):
                 "v_objects_tokens": v_objects_tokens, "v_attributes_tokens": v_attributes_tokens, "v_relations_tokens": v_relations_tokens,
                 "re_label": torch.tensor(re_label), "image": image, "TSG_adj_matrix": TSG_adj_matrix, "VSG_adj_matrix": VSG_adj_matrix,
                 "TSG_edge_mask": TSG_edge_mask, "VSG_edge_mask": VSG_edge_mask, "vbow_features": vbow_features, "tbow_features": tbow_features,
-                "item_id": item_id, "_relation": _relation}
+                "item_id": item_id}
 
 
 def extend_tensor(tensor, extended_shape, fill=0):

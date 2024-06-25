@@ -217,9 +217,9 @@ class Trainer(object):
                 t_objects_tokens=batch["t_objects_tokens"], t_attributes_tokens=batch["t_attributes_tokens"], t_relations_tokens=batch["t_relations_tokens"], 
                 v_objects_tokens=batch["v_objects_tokens"],  v_attributes_tokens=batch["v_attributes_tokens"], v_relations_tokens=batch["v_relations_tokens"],
                 TSG_adj_matrix=batch["TSG_adj_matrix"], TSG_edge_mask=batch["TSG_edge_mask"], VSG_adj_matrix=batch["VSG_adj_matrix"], VSG_edge_mask=batch["VSG_edge_mask"],
-                labels=batch["_relation"], X_T_bow=batch["X_T_bow"], X_V_bow=batch["X_V_bow"], writer=self.writer, step=step)
+                labels=batch["re_label"], X_T_bow=batch["X_T_bow"], X_V_bow=batch["X_V_bow"], writer=self.writer, step=step)
 
-        return (mu, std), logits1, logits2, batch["_relation"], topic_loss
+        return (mu, std), logits1, logits2, batch["re_label"], topic_loss
 
     def before_multimodal_train(self):
         pretrained_params = []
